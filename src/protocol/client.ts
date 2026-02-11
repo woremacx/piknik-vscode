@@ -12,7 +12,7 @@ import {
 } from "./auth.js";
 import { encryptAndSign, verifyAndDecrypt } from "./crypto.js";
 import { constantTimeEqual } from "./util.js";
-import { performHandshake, readExactly } from "./handshake.js";
+import { performHandshake } from "./handshake.js";
 
 export interface PiknikConfig {
   host: string;
@@ -34,7 +34,7 @@ export async function copyToServer(
   config: PiknikConfig,
   data: Uint8Array
 ): Promise<void> {
-  const { socket, h1 } = await performHandshake(
+  const { socket, reader, h1 } = await performHandshake(
     config.host,
     config.port,
     config.psk,
@@ -72,7 +72,7 @@ export async function copyToServer(
     socket.write(payload);
 
     // Read server confirmation: h3(32)
-    const h3 = await readExactly(socket, 32);
+    const h3 = await reader.read(32);
     const wh3 = auth3store(config.psk, h2);
     if (!constantTimeEqual(wh3, h3)) {
       throw new Error("Incorrect authentication code from server");
@@ -90,7 +90,7 @@ export async function pasteFromServer(
   config: PiknikConfig,
   isMove: boolean = false
 ): Promise<Uint8Array> {
-  const { socket, h1 } = await performHandshake(
+  const { socket, reader, h1 } = await performHandshake(
     config.host,
     config.port,
     config.psk,
@@ -107,7 +107,7 @@ export async function pasteFromServer(
     // Read response header: h3(32) || len(8 LE) || ts(8 LE) || sig(64) = 112 bytes
     let rbuf: Uint8Array;
     try {
-      rbuf = await readExactly(socket, 112);
+      rbuf = await reader.read(112);
     } catch {
       throw new Error("The clipboard might be empty");
     }
@@ -136,7 +136,7 @@ export async function pasteFromServer(
 
     // Read payload
     socket.setTimeout(config.dataTimeoutMs);
-    const payload = await readExactly(socket, payloadLen);
+    const payload = await reader.read(payloadLen);
 
     // Verify and decrypt
     return verifyAndDecrypt(

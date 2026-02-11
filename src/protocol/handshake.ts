@@ -6,62 +6,89 @@ import { constantTimeEqual } from "./util.js";
 import { generateRandom } from "./crypto.js";
 
 /**
- * Read exactly `n` bytes from a socket. Accumulates chunks until enough data.
+ * Buffered reader over a net.Socket.
+ * Maintains an internal buffer so data is never lost between reads.
  */
-export function readExactly(
-  socket: net.Socket,
-  n: number
-): Promise<Uint8Array> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    let received = 0;
-
-    const onData = (chunk: Buffer) => {
-      chunks.push(chunk);
-      received += chunk.length;
-      if (received >= n) {
-        socket.removeListener("data", onData);
-        socket.removeListener("error", onError);
-        socket.removeListener("close", onClose);
-        const full = Buffer.concat(chunks);
-        // Put back any extra bytes
-        if (full.length > n) {
-          socket.unshift(full.subarray(n));
-        }
-        resolve(new Uint8Array(full.subarray(0, n)));
+export class SocketReader {
+  private socket: net.Socket;
+  private buf: Buffer = Buffer.alloc(0);
+  private waiting:
+    | {
+        n: number;
+        resolve: (data: Uint8Array) => void;
+        reject: (err: Error) => void;
       }
-    };
+    | undefined;
+  private error: Error | undefined;
+  private closed = false;
 
-    const onError = (err: Error) => {
-      socket.removeListener("data", onData);
-      socket.removeListener("close", onClose);
-      reject(err);
-    };
+  constructor(socket: net.Socket) {
+    this.socket = socket;
+    socket.on("data", (chunk: Buffer) => {
+      this.buf = Buffer.concat([this.buf, chunk]);
+      this.flush();
+    });
+    socket.on("error", (err: Error) => {
+      this.error = err;
+      this.flush();
+    });
+    socket.on("close", () => {
+      this.closed = true;
+      this.flush();
+    });
+  }
 
-    const onClose = () => {
-      socket.removeListener("data", onData);
-      socket.removeListener("error", onError);
+  private flush(): void {
+    if (!this.waiting) return;
+    const { n, resolve, reject } = this.waiting;
+    if (this.buf.length >= n) {
+      this.waiting = undefined;
+      const result = new Uint8Array(this.buf.subarray(0, n));
+      this.buf = this.buf.subarray(n);
+      resolve(result);
+    } else if (this.error) {
+      this.waiting = undefined;
+      reject(this.error);
+    } else if (this.closed) {
+      this.waiting = undefined;
       reject(
         new Error(
-          `Connection closed after ${received} bytes (expected ${n})`
+          `Connection closed after ${this.buf.length} bytes (expected ${n})`
         )
       );
-    };
+    }
+  }
 
-    socket.on("data", onData);
-    socket.on("error", onError);
-    socket.on("close", onClose);
-  });
+  read(n: number): Promise<Uint8Array> {
+    // Already have enough buffered
+    if (this.buf.length >= n) {
+      const result = new Uint8Array(this.buf.subarray(0, n));
+      this.buf = this.buf.subarray(n);
+      return Promise.resolve(result);
+    }
+    if (this.error) return Promise.reject(this.error);
+    if (this.closed) {
+      return Promise.reject(
+        new Error(
+          `Connection closed after ${this.buf.length} bytes (expected ${n})`
+        )
+      );
+    }
+    return new Promise((resolve, reject) => {
+      this.waiting = { n, resolve, reject };
+    });
+  }
 }
 
 export interface HandshakeResult {
   socket: net.Socket;
+  reader: SocketReader;
   h1: Uint8Array;
 }
 
 /**
  * Connect to server and perform mutual authentication handshake.
- * Returns the socket and h1 (used for subsequent auth).
+ * Returns the socket, a buffered reader, and h1 (used for subsequent auth).
  */
 export function performHandshake(
   host: string,
@@ -73,6 +100,7 @@ export function performHandshake(
     const socket = net.createConnection({ host, port }, async () => {
       try {
         socket.setTimeout(timeoutMs);
+        const reader = new SocketReader(socket);
 
         // Generate random challenge
         const r = generateRandom(32);
@@ -90,7 +118,7 @@ export function performHandshake(
         // Read server response: version(1) || r'(32) || h1(32) = 65 bytes
         let serverHello: Uint8Array;
         try {
-          serverHello = await readExactly(socket, 65);
+          serverHello = await reader.read(65);
         } catch {
           socket.destroy();
           reject(
@@ -123,10 +151,10 @@ export function performHandshake(
           return;
         }
 
-        resolve({ socket, h1 });
+        resolve({ socket, reader, h1 });
       } catch (err) {
         socket.destroy();
-        reject(err);
+        reject(err as Error);
       }
     });
 

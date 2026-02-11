@@ -13,7 +13,7 @@ cd piknik-vscode
 ./build.sh
 ```
 
-`piknik-vscode-0.1.0.vsix` が生成される。
+`piknik-vscode-0.1.1.vsix` が生成される。
 
 ### VS Code にインストール
 
@@ -22,7 +22,7 @@ cd piknik-vscode
 **CLI**:
 
 ```sh
-code --install-extension piknik-vscode-0.1.0.vsix
+code --install-extension piknik-vscode-0.1.1.vsix
 ```
 
 ## 設定
