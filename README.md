@@ -6,11 +6,22 @@
 
 ## インストール
 
+### ビルド
+
 ```sh
 cd piknik-vscode
-npm install
-npm run build
-npx @vscode/vsce package --allow-missing-repository
+./build.sh
+```
+
+`piknik-vscode-0.1.0.vsix` が生成される。
+
+### VS Code にインストール
+
+**GUI**: Extensions サイドバー (`Cmd+Shift+X`) → 右上の `...` メニュー → **Install from VSIX...** → 生成された `.vsix` を選択
+
+**CLI**:
+
+```sh
 code --install-extension piknik-vscode-0.1.0.vsix
 ```
 
