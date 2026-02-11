@@ -1,0 +1,117 @@
+{
+  "name": "piknik-vscode",
+  "displayName": "Piknik",
+  "description": "Secure network clipboard sharing (piknik client)",
+  "version": "0.1.0",
+  "publisher": "piknik",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "piknik.copy",
+        "title": "Piknik: Copy"
+      },
+      {
+        "command": "piknik.paste",
+        "title": "Piknik: Paste"
+      },
+      {
+        "command": "piknik.move",
+        "title": "Piknik: Move"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "piknik.copy",
+        "key": "ctrl+shift+c",
+        "mac": "cmd+shift+c",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "piknik.paste",
+        "key": "ctrl+shift+v",
+        "mac": "cmd+shift+v",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "piknik.move",
+        "key": "ctrl+shift+m",
+        "mac": "cmd+shift+m",
+        "when": "editorTextFocus"
+      }
+    ],
+    "configuration": {
+      "title": "Piknik",
+      "properties": {
+        "piknik.connect": {
+          "type": "string",
+          "default": "127.0.0.1:8075",
+          "description": "Server address (host:port)"
+        },
+        "piknik.psk": {
+          "type": "string",
+          "default": "",
+          "description": "Pre-shared key (hex, 64 chars)"
+        },
+        "piknik.signPk": {
+          "type": "string",
+          "default": "",
+          "description": "Ed25519 public signing key (hex, 64 chars)"
+        },
+        "piknik.signSk": {
+          "type": "string",
+          "default": "",
+          "description": "Ed25519 secret signing key seed (hex, 64 chars)"
+        },
+        "piknik.encryptSk": {
+          "type": "string",
+          "default": "",
+          "description": "XChaCha20 encryption key (hex, 64 chars)"
+        },
+        "piknik.encryptSkId": {
+          "type": "number",
+          "default": 0,
+          "description": "Encryption key ID (0 = auto-compute from encryptSk)"
+        },
+        "piknik.timeout": {
+          "type": "number",
+          "default": 10,
+          "description": "Connection timeout in seconds"
+        },
+        "piknik.dataTimeout": {
+          "type": "number",
+          "default": 3600,
+          "description": "Data transmission timeout in seconds"
+        },
+        "piknik.ttl": {
+          "type": "number",
+          "default": 604800,
+          "description": "Clipboard content TTL in seconds (default: 7 days)"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "node esbuild.js --production",
+    "build": "node esbuild.js",
+    "watch": "node esbuild.js --watch",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@noble/ciphers": "^1.2.1",
+    "@noble/curves": "^1.8.1",
+    "@noble/hashes": "^1.7.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.5.0",
+    "vitest": "^3.0.0"
+  }
+}
